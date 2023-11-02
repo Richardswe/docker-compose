@@ -1,0 +1,65 @@
+version: "3.9"
+services:
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "true"
+      MYSQL_DATABASE: "passbolt"
+      MYSQL_USER: "passbolt"
+      MYSQL_PASSWORD: "SuperSecretPassword"
+    volumes:
+      - database_volume:/var/lib/mysql
+    networks:
+      - passbolt
+
+  passbolt:
+    image: passbolt/passbolt:latest-ce
+    #Alternatively you can use rootless:
+    #image: passbolt/passbolt:latest-ce-non-root
+    restart: unless-stopped
+    depends_on:
+      - db
+    networks:
+      - passbolt
+    environment:
+      APP_FULL_BASE_URL: https://YourPublicDomain.com
+      DATASOURCES_DEFAULT_HOST: "db"
+      DATASOURCES_DEFAULT_USERNAME: "passbolt"
+      DATASOURCES_DEFAULT_PASSWORD: "SuperSecretPassword"
+      DATASOURCES_DEFAULT_DATABASE: "passbolt"
+    volumes:
+      - gpg_volume:/etc/passbolt/gpg
+      - jwt_volume:/etc/passbolt/jwt
+    command:
+      [
+        "/usr/bin/wait-for.sh",
+        "-t",
+        "0",
+        "db:3306",
+        "--",
+        "/docker-entrypoint.sh",
+      ]
+    ports:
+      - :443
+    labels:
+      - 'traefik.enable=true'
+      - "traefik.http.services.passbolt.loadbalancer.server.port=80"
+      - 'traefik.http.routers.passbolt.entrypoints=http'
+      - "traefik.http.routers.passbolt.entrypoints=websecure"
+      - 'traefik.http.routers.passbolt.rule=Host(`YourPublicDomain.com`)'
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - 'traefik.http.middlewares.passbolt-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.passbolt.middlewares=passbolt-https-redirect'
+      - "traefik.http.routers.passbolt.tls.certresolver=myresolver"
+      - "traefik.docker.network=passbolt"
+
+volumes:
+  database_volume:
+  gpg_volume:
+  jwt_volume:
+
+networks:
+  passbolt:
+    name: passbolt
+    external: true
