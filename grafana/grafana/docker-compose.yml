@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    networks:
+      - monitoring
+    volumes:
+      - '/etc/localtime:/etc/localtime:ro'
+      - '/etc/timezone:/timezone:ro'
+      - 'grafana_storage:/var/lib/grafana'
+    environment:
+      GF_SECURITY_ADMIN_USER: "adminuser"
+      GF_SECURITY_ADMIN_PASSWORD: "Super-Secret-Password"
+      GF_INSTALL_PLUGINS: "alexanderzobnin-zabbix-app"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.grafana.rule=Host(`publicdomain.com`)"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+volumes:
+  grafana_storage: {}
+
+networks:
+  monitoring:
+    name: monitoring
+    external: true
